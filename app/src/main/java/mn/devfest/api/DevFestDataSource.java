@@ -1,50 +1,53 @@
 package mn.devfest.api;
 
 import android.content.Context;
-import android.util.JsonReader;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.reflect.TypeToken;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Array;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Map;
 
 import mn.devfest.R;
 import mn.devfest.api.model.Conference;
 import mn.devfest.api.model.Session;
 import mn.devfest.api.model.Speaker;
+import mn.devfest.schedule.UserScheduleRepository;
 
 /**
+ * This is the source of session, schedule, and speaker information. This acts as a general
+ * contractor that can coordinate between various subcontractor classes including but not limited to
+ * local and remote data sources.
+ * TODO make singleton
+ *
  * Created by chris.black on 12/5/15.
  */
 public class DevFestDataSource {
 
-    private Conference conference;
+    private Conference mConference;
+    private UserScheduleRepository mScheduleRepository;
+    private DataSourceListener mDataSourceListener;
 
-    public DevFestDataSource(Context context) {
+    public DevFestDataSource(Context context, DataSourceListener listener) {
+        mDataSourceListener = listener;
+        //TODO inject this
+        mScheduleRepository = new UserScheduleRepository(context);
+
         //Reading source from local file
         InputStream inputStream = context.getResources().openRawResource(R.raw.firebase);
         String jsonString = readJsonFile(inputStream);
 
-        conference = new Conference();//gson.fromJson(jsonString, Conference.class);
+        mConference = new Conference();//gson.fromJson(jsonString, Conference.class);
         JsonParser p = new JsonParser();
         JsonObject jsonobject = p.parse(jsonString).getAsJsonObject();
-        conference.parseSessions(jsonobject.getAsJsonObject("schedule"));
-        conference.parseSpeakers(jsonobject.getAsJsonObject("speakers"));
-        conference.version = jsonobject.get("versionNum").getAsDouble();
-        System.out.println(conference.toString());
+        mConference.parseSessions(jsonobject.getAsJsonObject("schedule"));
+        mConference.parseSpeakers(jsonobject.getAsJsonObject("speakers"));
+        mConference.version = jsonobject.get("versionNum").getAsDouble();
+        System.out.println(mConference.toString());
+
+        onConferenceUpdated();
     }
 
     private String readJsonFile(InputStream inputStream) {
@@ -65,17 +68,51 @@ public class DevFestDataSource {
     }
 
     public ArrayList<Session> getSessions() {
-        return conference.schedule;
+        return mConference.schedule;
     }
 
     public ArrayList<Speaker> getSpeakers() {
-        return conference.speakers;
+        return mConference.speakers;
     }
 
-    public interface DataSourceCallback {
+    public ArrayList<Session> getUserSchedule() {
+        //Remove sessions from the list that don't have an ID stored in the list of schedule IDs
+        ArrayList<Session> sessions = getSessions();
 
+        // We use a loop that goes backwards so we can remove items as we iterate over the list without
+        // running into a concurrent modification issue or altering the indices of items
+        for (int i = sessions.size() - 1; i >= 0; i--) {
+            Session session = sessions.get(i);
+            if (!mScheduleRepository.getScheduleIds().contains(session.getId())) {
+                sessions.remove(i);
+            }
+        }
+        return sessions;
+    }
+
+    public void setDataSourceListener(DataSourceListener listener) {
+        mDataSourceListener = listener;
+    }
+
+    private void onConferenceUpdated() {
+        //Notify listener
+        mDataSourceListener.onSessionsUpdate(getSessions());
+        mDataSourceListener.onSpeakersUpdate(getSpeakers());
+        mDataSourceListener.onUserScheduleUpdate(getUserSchedule());
+    }
+
+    /**
+     * Listener for updates from the data source
+     */
+    public interface DataSourceListener {
+        //These methods are for updating the listener
+        ArrayList<Session> onSessionsUpdate(ArrayList<Session> sessions);
+        ArrayList<Speaker> onSpeakersUpdate(ArrayList<Speaker> speakers);
+        ArrayList<Session> onUserScheduleUpdate(ArrayList<Session> userSchedule);
+        //TODO delete these methods when they're not used any more
         ArrayList<Session> getSessions();
         ArrayList<Speaker> getSpeakers();
+        ArrayList<Session> getSchedule();
 
     }
 }

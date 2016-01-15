@@ -18,7 +18,7 @@ import mn.devfest.speakers.SpeakerListFragment;
 /**
  * Main DevFest Activity. Handle navigation between top-level screens
  */
-public class MainActivity extends BaseActivity implements DevFestDataSource.DataSourceCallback {
+public class MainActivity extends BaseActivity implements DevFestDataSource.DataSourceListener {
     /**
      * Intent extra specifying a navigation destination
      *
@@ -27,7 +27,7 @@ public class MainActivity extends BaseActivity implements DevFestDataSource.Data
     public static final String EXTRA_NAVIGATION_DESTINATION = "navigation_destination";
 
     // TODO: There is probably a 'Dagger' way to inject the data source
-    private DevFestDataSource ds;
+    private DevFestDataSource mDataSource;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,7 +38,8 @@ public class MainActivity extends BaseActivity implements DevFestDataSource.Data
             int navId = getIntent().getIntExtra(EXTRA_NAVIGATION_DESTINATION, R.id.nav_schedule);
             navigateToTopLevelFragment(navId, false);
         }
-        ds = new DevFestDataSource(this);
+        mDataSource = new DevFestDataSource(this, this);
+        mDataSource.setDataSourceListener(this);
     }
 
     @Override
@@ -86,12 +87,32 @@ public class MainActivity extends BaseActivity implements DevFestDataSource.Data
     }
 
     @Override
+    public ArrayList<Session> onSessionsUpdate(ArrayList<Session> sessions) {
+        return sessions;
+    }
+
+    @Override
+    public ArrayList<Speaker> onSpeakersUpdate(ArrayList<Speaker> speakers) {
+        return speakers;
+    }
+
+    @Override
+    public ArrayList<Session> onUserScheduleUpdate(ArrayList<Session> userSchedule) {
+        return userSchedule;
+    }
+
+    @Override
     public ArrayList<Session> getSessions() {
-        return ds.getSessions();
+        return mDataSource.getSessions();
     }
 
     @Override
     public ArrayList<Speaker> getSpeakers() {
-        return ds.getSpeakers();
+        return mDataSource.getSpeakers();
+    }
+
+    @Override
+    public ArrayList<Session> getSchedule() {
+        return mDataSource.getUserSchedule();
     }
 }
