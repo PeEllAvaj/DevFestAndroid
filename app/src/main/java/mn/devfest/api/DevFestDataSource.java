@@ -1,5 +1,7 @@
 package mn.devfest.api;
 
+import android.support.annotation.NonNull;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,8 +18,11 @@ import timber.log.Timber;
  * This is the source of session, schedule, and speaker information. This acts as a general
  * contractor that can coordinate between various subcontractor classes including but not limited to
  * local and remote data sources.
- *
+ * <p>
  * Created by chris.black on 12/5/15.
+ *
+ * @author bherbst
+ * @author pfuentes
  */
 public class DevFestDataSource implements Callback<Conference> {
 
@@ -25,40 +30,92 @@ public class DevFestDataSource implements Callback<Conference> {
     private final UserScheduleRepository mScheduleRepository;
 
     private Conference mConference;
+    //TODO move to an array of listeners?
     private DataSourceListener mDataSourceListener;
 
     public DevFestDataSource(DevFestApi api, UserScheduleRepository scheduleRepository) {
         this.mApi = api;
         this.mScheduleRepository = scheduleRepository;
 
+        // TODO this is a terrible place to fetch the API data.
+        // It isn't clear what thread this is called on, typically shouldn't happen in a constructor,
+        // and doesn't allow for easy refreshing if data if that is necessary in the future.
         mApi.getConferenceInfo(this);
     }
 
-    public void setListener(DataSourceListener listener) {
-        mDataSourceListener = listener;
-    }
-
+    @NonNull
     public List<Session> getSessions() {
-        return mConference.schedule;
+        if (mConference == null) {
+            return new ArrayList<>();
+        }
+        if (mConference.getSchedule() == null) {
+            return new ArrayList<>();
+        }
+
+        return mConference.getSchedule();
     }
 
+    @NonNull
     public List<Speaker> getSpeakers() {
-        return mConference.speakers;
+        if (mConference == null) {
+            return new ArrayList<>();
+        }
+        if (mConference.getSpeakers() == null) {
+            return new ArrayList<>();
+        }
+
+        return mConference.getSpeakers();
     }
 
+    @NonNull
     public List<Session> getUserSchedule() {
-        //Remove sessions from the list that don't have an ID stored in the list of schedule IDs
+        // Find sessions with an ID matching the user's saved session IDs
         List<Session> sessions = getSessions();
+        List<Session> userSessions = new ArrayList<>();
+
+        if (sessions.size() == 0) {
+            return sessions;
+        }
 
         // We use a loop that goes backwards so we can remove items as we iterate over the list without
         // running into a concurrent modification issue or altering the indices of items
         for (int i = sessions.size() - 1; i >= 0; i--) {
             Session session = sessions.get(i);
-            if (!mScheduleRepository.getScheduleIds().contains(session.getId())) {
-                sessions.remove(i);
+            if (mScheduleRepository.getScheduleIds().contains(session.getId())) {
+                userSessions.add(session);
             }
         }
-        return sessions;
+        return userSessions;
+    }
+
+    /**
+     * Adds the session with the given ID to the user's schedule
+     * TODO decide if we want this pass-through to maintain the general contractor paradigm
+     *
+     * @param sessionId ID of the session to be added
+     */
+    public void addToUserSchedule(String sessionId) {
+        mScheduleRepository.addSession(sessionId);
+    }
+
+    /**
+     * Removes the session with the given ID from the user's schedule
+     * TODO decide if we want this pass-through to maintain the general contractor paradigm
+     *
+     * @param sessionId ID of the session to be removed
+     */
+    public void removeFromUserSchedule(String sessionId) {
+        mScheduleRepository.removeSession(sessionId);
+    }
+
+    /**
+     * Checks if a given session is in the user's schedule
+     * TODO decide if we want this pass-through to maintain the general contractor paradigm
+     * @param sessionId ID of the session to check for inclusion in the list
+     * @return true if the session is in the user's schedule; otherwise false
+     */
+    public boolean isInUserSchedule(String sessionId) {
+        return mScheduleRepository.isInSchedule(sessionId);
     }
 
     public void setDataSourceListener(DataSourceListener listener) {
@@ -88,13 +145,10 @@ public class DevFestDataSource implements Callback<Conference> {
      */
     public interface DataSourceListener {
         //These methods are for updating the listener
-        List<Session> onSessionsUpdate(List<Session> sessions);
-        List<Speaker> onSpeakersUpdate(List<Speaker> speakers);
-        List<Session> onUserScheduleUpdate(List<Session> userSchedule);
-        //TODO delete these methods when they're not used any more
-        List<Session> getSessions();
-        List<Speaker> getSpeakers();
-        List<Session> getSchedule();
+        void onSessionsUpdate(List<Session> sessions);
 
+        void onSpeakersUpdate(List<Speaker> speakers);
+
+        void onUserScheduleUpdate(List<Session> userSchedule);
     }
 }
