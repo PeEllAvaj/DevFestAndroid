@@ -14,6 +14,7 @@ import butterknife.Bind;
 import butterknife.ButterKnife;
 import mn.devfest.R;
 import mn.devfest.api.model.Speaker;
+import mn.devfest.speakers.SpeakerImageTransformation;
 
 /**
  * Custom view that displays information about a speaker
@@ -75,23 +76,24 @@ public class SpeakerView extends LinearLayout {
      */
     private void updateTextAndImage() {
         Picasso.with(mContext)
-                .load(mSpeaker.getImage())
+                .load(mSpeaker.getImageUrl())
                 .placeholder(R.drawable.ic_account_circle_white_48dp)
+                .transform(new SpeakerImageTransformation())
                 .into(mProfileImageview);
         mNameTextview.setText(mSpeaker.getName());
         mBioTextview.setText(mSpeaker.getBio());
-        if (mSpeaker.getCompany().isEmpty()) {
+        if (mSpeaker.getCompany() == null || mSpeaker.getCompany().isEmpty()) {
             mCompanyTextview.setVisibility(GONE);
         } else {
             mCompanyTextview.setText(mSpeaker.getCompany());
         }
-        if (mSpeaker.getTwitter().isEmpty()) {
+        if (mSpeaker.getTwitter() == null || mSpeaker.getTwitter().isEmpty()) {
             mTwitterHeading.setVisibility(GONE);
             mTwitterTextview.setVisibility(GONE);
         } else {
             mTwitterTextview.setText(mSpeaker.getTwitter());
         }
-        if (mSpeaker.getWebsite().isEmpty()) {
+        if (mSpeaker.getWebsite() == null || mSpeaker.getWebsite().isEmpty()) {
             mWebsiteHeading.setVisibility(GONE);
             mWebsiteTextview.setVisibility(GONE);
         } else {
